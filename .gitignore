@@ -1,0 +1,5 @@
+/build
+/test_levels
+/test_campaigns
+/target/
+**/*.rs.bk

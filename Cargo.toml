@@ -1,0 +1,29 @@
+[package]
+name = "topskud"
+version = "0.1.9"
+authors = ["LFalch <lucas@wasd.dk>"]
+edition = "2018"
+
+[dependencies]
+ggez = "0.5.1"
+bincode = "1"
+serde_derive = "1"
+serde = "1"
+self-compare = "0.2"
+rand = "0.6"
+clipboard = "0.5"
+toml = "0.5"
+lazy_static = "1"
+log = "0.4"
+[dependencies.nalgebra]
+version = "0.18"
+features = ["mint"]
+
+[profile.dev]
+opt-level = 2
+
+[profile.test]
+opt-level = 2
+
+[profile.release]
+lto = true
