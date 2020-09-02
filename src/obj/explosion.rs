@@ -25,6 +25,7 @@ pub struct Utilities {
 #[derive(Debug, Clone)]
 pub struct Explosion {
     pub obj: Object,
+    pub f32: Range;
     pub state: ExplosionState,
 }
 
@@ -43,7 +44,6 @@ pub enum ExplosionState {
 const EXPLOSION_LIFETIME: f32 = 0.5;
 const DEC: f32 = 1.4;
 
-const RANGE: f32 = 144.;
 const LETHAL_RANGE: f32 = 64.;
 
 impl Explosion {
@@ -86,12 +86,12 @@ impl Explosion {
             color: [1.0, 1.0, 1.0, 1.0],
         };
         let vertices: Vec<_> = (0..NUM_VERTICES).map(|i| {
-            let angle = RANGE * angle_to_vec(i as f32 * RADIANS_PER_VERT);
+            let angle = Range * angle_to_vec(i as f32 * RADIANS_PER_VERT);
             let angle_uv = 0.5 * angle_to_vec(i as f32 * RADIANS_PER_VERT + random_offset);
             let cast = grid.ray_cast(palette, self.obj.pos, angle, true);
             graphics::Vertex{
                 pos: (cast.into_point() - self.obj.pos).into(),
-                uv: (Vector2::new(0.5, 0.5) + (cast.clip().norm()-RANGE)/RANGE * angle_uv).into(),
+                uv: (Vector2::new(0.5, 0.5) + (cast.clip().norm()-Range)/Range * angle_uv).into(),
                 color: [1.0, 1.0, 1.0, 1.0],
             }
         }).chain(iter::once(centre)).collect();
@@ -111,7 +111,7 @@ impl Explosion {
             let mut enemy_hits = Vec::new();
 
             let d_player = player.obj.pos-start;
-            if d_player.norm() < RANGE && grid.ray_cast(palette, start, d_player, true).full() {
+            if d_player.norm() < Range && grid.ray_cast(palette, start, d_player, true).full() {
                 Self::apply_damage(&mut player.health, d_player.norm() <= LETHAL_RANGE);
                 player_hit = true;
             } else {
