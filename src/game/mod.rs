@@ -316,7 +316,7 @@ impl EventHandler for Master {
 
             use self::StateSwitch::*;
             self.gs = match gsb {
-                PlayWith{lvl, health} => states::play::Play::new(ctx, &mut self.state, *lvl, Some((health))),
+                PlayWith{lvl, health} => states::play::Play::new(ctx, &mut self.state, *lvl, Some(health)),
                 Play(lvl) => states::play::Play::new(ctx, &mut self.state, lvl, None),
                 Menu => states::menu::Menu::new(ctx, &mut self.state),
                 Editor(l) => states::editor::Editor::new(&self.state, l),

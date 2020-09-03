@@ -19,13 +19,13 @@ use super::{Object, player::Player, enemy::Enemy, health::Health};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Utilities {
-    pub explosions: u8,
+    // pub explosions: u8,
 }
 
 #[derive(Debug, Clone)]
 pub struct Explosion {
     pub obj: Object,
-    pub f32: Range;
+    pub range: f32,
     pub state: ExplosionState,
 }
 
@@ -55,8 +55,8 @@ impl Explosion {
     pub fn draw(&self, ctx: &mut Context, a: &Assets) -> GameResult<()> {
         match &self.state {
             ExplosionState::Fused{..} => {
-                // let img = a.get_img(ctx, "weapons/pineapple");
-                // self.obj.draw(ctx, &*img, WHITE)
+                let img = a.get_img(ctx, "spells/smoke");
+                self.obj.draw(ctx, &*img, WHITE)
             }
             ExplosionState::Explosion { mesh, alive_time } => {
                 const EXPANDING_TIME: f32 = 0.1;
@@ -86,21 +86,21 @@ impl Explosion {
             color: [1.0, 1.0, 1.0, 1.0],
         };
         let vertices: Vec<_> = (0..NUM_VERTICES).map(|i| {
-            let angle = Range * angle_to_vec(i as f32 * RADIANS_PER_VERT);
+            let angle = self.range * angle_to_vec(i as f32 * RADIANS_PER_VERT);
             let angle_uv = 0.5 * angle_to_vec(i as f32 * RADIANS_PER_VERT + random_offset);
             let cast = grid.ray_cast(palette, self.obj.pos, angle, true);
             graphics::Vertex{
                 pos: (cast.into_point() - self.obj.pos).into(),
-                uv: (Vector2::new(0.5, 0.5) + (cast.clip().norm()-Range)/Range * angle_uv).into(),
+                uv: (Vector2::new(0.5, 0.5) + (cast.clip().norm()-self.range)/self.range * angle_uv).into(),
                 color: [1.0, 1.0, 1.0, 1.0],
             }
         }).chain(iter::once(centre)).collect();
         
         let indices = (0..NUM_VERTICES).flat_map(|i| iter::once(NUM_VERTICES).chain(iter::once(i)).chain(iter::once((i + 1) % NUM_VERTICES))).collect::<Vec<_>>();
-        let expl_img = (a.get_img(ctx, "weapons/explosion1")).clone();
+        let expl_img = (a.get_img(ctx, "spells/explosion")).clone();
         Mesh::from_raw(ctx, &vertices, &indices, Some(expl_img))
     }
-    pub fn update_fused(obj: &mut Object, fuse: &mut f32, palette: &Palette, grid: &Grid, player: &mut Player, enemies: &mut [Enemy]) -> ExplosionUpdate {
+    pub fn update_fused(obj: &mut Object, range: f32, fuse: &mut f32, palette: &Palette, grid: &Grid, player: &mut Player, enemies: &mut [Enemy]) -> ExplosionUpdate {
         let start = obj.pos;
         if *fuse > DELTA {
             *fuse -= DELTA;
@@ -111,7 +111,7 @@ impl Explosion {
             let mut enemy_hits = Vec::new();
 
             let d_player = player.obj.pos-start;
-            if d_player.norm() < Range && grid.ray_cast(palette, start, d_player, true).full() {
+            if d_player.norm() < range && grid.ray_cast(palette, start, d_player, true).full() {
                 Self::apply_damage(&mut player.health, d_player.norm() <= LETHAL_RANGE);
                 player_hit = true;
             } else {
@@ -129,8 +129,8 @@ impl Explosion {
             return ExplosionUpdate::Explosion{player_hit, enemy_hits};
         }
 
-        let closest_p = Grid::closest_point_of_line_to_circle(start, d_pos, player.obj.pos);
-        let r_player = player.obj.pos - closest_p;
+        // let closest_p = Grid::closest_point_of_line_to_circle(start, d_pos, player.obj.pos);
+        // let r_player = player.obj.pos - closest_p;
         
         ExplosionUpdate::None
     }
@@ -146,7 +146,7 @@ impl Explosion {
                 }
             }
             ExplosionState::Fused{ref mut fuse} => {
-                Self::update_fused(&mut self.obj, fuse, palette, grid, player, enemies)
+                Self::update_fused(&mut self.obj, self.range, fuse, palette, grid, player, enemies)
             }
         };
         if let ExplosionUpdate::Explosion{..} = update {
@@ -161,32 +161,27 @@ impl Explosion {
 
 impl Utilities {
     pub fn Create_Explosion(&mut self, ctx: &mut Context, mplayer: &mut MediaPlayer) -> GameResult<Option<ExplosionMaker>> {
-        if self.explosions > 0 {
-            self.explosions -= 1;
-
-            mplayer.play(ctx, "throw")?;
-            Ok(Some(ExplosionMaker(620.)))
-        } else {
-            mplayer.play(ctx, "cock")?;
-            Ok(None)
-        }
+        mplayer.play(ctx, "throw")?;
+        Ok(Some(ExplosionMaker()))
     }
 }
 
-pub struct ExplosionMaker(f32);
+pub struct ExplosionMaker();
 impl ExplosionMaker {
-    pub fn make(self, mut obj: Object) -> Explosion {
+    pub fn make(self, mut obj: Object, range: f32) -> Explosion {
         obj.rot = 0.;
         Explosion {
-            state: ExplosionState::Fused{fuse: 0.05},
+            state: ExplosionState::Fused{fuse: 1.05},
             obj,
+            range,
         }
     }
-    pub fn make_with_fuse(self, mut obj: Object, fuse: f32) -> Explosion {
+    pub fn make_with_fuse(self, mut obj: Object, range: f32, fuse: f32) -> Explosion {
         obj.rot = 0.;
         Explosion {
             state: ExplosionState::Fused{fuse},
             obj,
+            range,
         }
     }
 }

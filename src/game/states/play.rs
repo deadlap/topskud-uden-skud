@@ -8,7 +8,7 @@ use crate::{
         Vector2, Point2
     },
     io::tex::PosText,
-    obj::{Object, decal::Decal, pickup::Pickup, player::{Player}, enemy::{Enemy, Chaser}, health::Health},
+    obj::{Object, projectile::Projectile, explosion::ExplosionUpdate, decal::Decal, pickup::Pickup, player::{Player}, enemy::{Enemy, Chaser}, health::Health},
     game::{
         DELTA, State, GameState, StateSwitch, world::{Level, Statistics, World},
         event::{Event::{self, Key, Mouse}, MouseButton, KeyCode, KeyMods}
@@ -84,6 +84,8 @@ impl Play {
                     let mut world = World {
                         enemies: level.enemies,
                         player,
+                        explosions: Vec::new(),
+                        projectiles: Vec::new(),
                         palette: level.palette,
                         grid: level.grid,
                         exit: level.exit,
@@ -111,6 +113,59 @@ impl GameState for Play {
         self.status_text.update(0, "")?;
 
         let mut deads = Vec::new();
+        for (i, explosion) in self.world.explosions.iter_mut().enumerate().rev() {
+            let e_update = explosion.update(ctx, &s.assets, &self.world.palette, &self.world.grid, &mut self.world.player, &mut *self.world.enemies)?;
+
+            match e_update {
+                ExplosionUpdate::Explosion{player_hit, enemy_hits} => {
+                    s.mplayer.play(ctx, "boom")?;
+
+                    if player_hit {
+                        self.world.decals.push(new_blood(self.world.player.obj.clone()));
+                        s.mplayer.play(ctx, "hit")?;
+
+                        if self.world.player.health.is_dead() {
+                            s.switch(StateSwitch::Lose(Box::new(Statistics{
+                                time: self.time,
+                                enemies_left: self.world.enemies.len(),
+                                health_left: self.initial,
+                                level: self.level.clone(),
+                            })));
+                            s.mplayer.play(ctx, "death")?;
+                        } else {
+                            s.mplayer.play(ctx, "hurt")?;
+                        }
+                    }
+                    for i in enemy_hits {
+                        let enemy = &self.world.enemies[i];
+                        s.mplayer.play(ctx, "hit")?;
+
+                        self.world.decals.push(new_blood(enemy.pl.obj.clone()));
+                        if enemy.pl.health.is_dead() {
+                            s.mplayer.play(ctx, "death")?;
+
+                            let Enemy{pl: Player{obj: Object{pos, ..}, ..}, ..}
+                                = self.world.enemies.remove(i);
+                        } else {
+                            if !enemy.behaviour.chasing() {
+                                self.world.enemies[i].behaviour = Chaser::LookAround{
+                                    dir: explosion.obj.pos - enemy.pl.obj.pos
+                                };
+                            }
+                            s.mplayer.play(ctx, "hurt")?;
+                        }
+                    }
+                }
+                ExplosionUpdate::Dead => {
+                    deads.push(i);
+                }
+                ExplosionUpdate::None => (),
+            }
+        }
+        for i in deads {
+            self.world.explosions.remove(i);
+        }
+        let mut deads = Vec::new(); 
         for (i, &intel) in self.world.intels.iter().enumerate().rev() {
             if (intel-self.world.player.obj.pos).norm() <= 15. {
                 deads.push(i);
@@ -221,6 +276,10 @@ impl GameState for Play {
         for enemy in &self.world.enemies {
             enemy.draw(ctx, &s.assets, WHITE)?;
         }
+        
+        for explosion in &self.world.explosions {
+            explosion.draw(ctx, &s.assets)?;
+        }
 
         Ok(())
     }
@@ -253,7 +312,7 @@ impl GameState for Play {
                 let player = &mut self.world.player;
                 let mut backstab = false;
                 let mut dead = None;
-
+                
                 for (i, enemy) in self.world.enemies.iter_mut().enumerate() {
                     let dist = player.obj.pos-enemy.pl.obj.pos;
                     let dist_len = dist.norm();
@@ -276,6 +335,15 @@ impl GameState for Play {
                 }
 
                 s.mplayer.play(ctx, if backstab {"shuk"} else {"hling"}).unwrap();
+            }
+            Mouse(MouseButton::Right) => {
+                if let Some(em) = self.world.player.utilities.Create_Explosion(ctx, &mut s.mplayer).unwrap() {
+                    let pos = s.mouse - s.offset;
+                    let mut expl = Object::new(pos);
+                    expl.rot = self.world.player.obj.rot;
+
+                    self.world.explosions.push(em.make(expl, 144.));
+                }
             }
             _ => (),
         }

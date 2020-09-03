@@ -8,24 +8,26 @@ use crate::{
     },
     io::tex::{Assets, }
 };
-use super::{Object, player::Player, enemy::Enemy, health::Health, weapon::Weapon};
+use super::{Object, player::Player, enemy::Enemy, health::Health};
 
 #[derive(Debug, Clone)]
-pub struct Projectile<'a> {
+pub struct Projectile {
     pub obj: Object,
-    pub weapon: &'a Weapon,
     pub vel: Vector2,
+    pub damage: f32,
+    pub penetration: f32,
+    pub projectile_speed: f32,
 }
 
-impl Projectile<'_> {
+impl Projectile<> {
     pub fn apply_damage(&self, health: &mut Health) {
-        let dmg = self.weapon.damage * self.vel.norm() / self.weapon.projectile_speed;
+        let dmg = self.damage * self.vel.norm() / self.projectile_speed;
 
-        health.weapon_damage(dmg, self.weapon.penetration);
+        health.weapon_damage(dmg, self.penetration);
     }
     #[inline]
     pub fn draw(&self, ctx: &mut Context, a: &Assets) -> GameResult<()> {
-        let img = a.get_img(ctx, self.weapon.get_projectile_spr());
+        let img = a.get_img(ctx, "common/bullet");
         self.obj.draw(ctx, &*img, WHITE)
     }
     pub fn update(&mut self, palette: &Palette, grid: &Grid, player: &mut Player, enemies: &mut [Enemy]) -> Hit {

@@ -10,13 +10,15 @@ use crate::{
     },
 };
 
-use super::{Object, health::Health};
+use super::{Object, health::Health, explosion::Utilities};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
     pub obj: Object,
     #[serde(skip)]
     pub health: Health,
+    #[serde(skip)]
+    pub utilities: Utilities,
 }
 
 impl Player {
@@ -25,6 +27,7 @@ impl Player {
         Self {
             obj,
             health: Health::default(),
+            utilities: Utilities::default(),
         }
     }
     #[inline]

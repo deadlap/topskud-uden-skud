@@ -9,6 +9,8 @@ pub mod enemy;
 pub mod health;
 pub mod pickup;
 pub mod decal;
+pub mod explosion;
+pub mod projectile;
 
 use crate::game::world::{Grid, Palette};
 use crate::game::DELTA;

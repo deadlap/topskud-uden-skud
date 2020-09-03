@@ -5,6 +5,8 @@ use crate::{
         player::{Player},
         enemy::Enemy,
         health::Health,
+        projectile::Projectile,
+        explosion::Explosion,
         pickup::Pickup,
         decal::{Decal, OldDecoration},
     }
@@ -32,6 +34,8 @@ pub struct World {
     pub exit: Option<Point2>,
     pub intels: Vec<Point2>,
     pub enemies: Vec<Enemy>,
+    pub projectiles: Vec<Projectile>,
+    pub explosions: Vec<Explosion>,
     pub decals: Vec<Decal>,
     pub pickups: Vec<Pickup>,
 }
