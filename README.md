@@ -1,6 +1,7 @@
 # IngenSkud
 
-A top-down game.
+A top-down game, in which you combine different elements and spelltypes to create spells to kill opponents. These different elements interact with parts of the terrain/map in different ways.
+Such as using certain ice spells on water, will make it freeze and root enemies already walking in the water.
 
 ## Build requirements
 
