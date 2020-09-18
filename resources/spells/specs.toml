@@ -1,0 +1,10 @@
+[fire]
+name = "fire-cone"
+cast_name = "fire_cone"
+element_type = ["fire"]
+spell_range = 12.0
+energy_cost = 0.0
+cast_type = "explosion"
+cooldown_time = 0.0
+charge_time = 0.0
+cast_snd = "boom"

@@ -5,8 +5,9 @@ use crate::{
         player::{Player},
         enemy::Enemy,
         health::Health,
-        projectile::Projectile,
-        explosion::Explosion,
+        projectile::{Projectile, ProjectileInstance, PROJECTILES},
+        explosion::{Explosion, ExplosionInstance, EXPLOSIONS},
+        spell::{Spell, SpellInstance, SPELLS},
         pickup::Pickup,
         decal::{Decal, OldDecoration},
     }
@@ -34,8 +35,8 @@ pub struct World {
     pub exit: Option<Point2>,
     pub intels: Vec<Point2>,
     pub enemies: Vec<Enemy>,
-    pub projectiles: Vec<Projectile>,
-    pub explosions: Vec<Explosion>,
+    pub projectiles: Vec<ProjectileInstance<'static>>,
+    pub explosions: Vec<ExplosionInstance<'static>>,
     pub decals: Vec<Decal>,
     pub pickups: Vec<Pickup>,
 }
@@ -58,6 +59,22 @@ impl World {
     }
     pub fn player_pickup(&mut self) {
         let player = &mut self.player;
+        // {
+        //     let mut deads = vec![];
+        //     for (w, weapon) in self.weapons.iter().enumerate() {
+        //         if (weapon.pos - player.obj.pos).norm() <= 16. {
+        //             deads.push(w);
+        //             break;
+        //         }
+        //     }
+        //     for i in deads {
+        //         let weapon_slot = player.wep.insert(&self.weapons[i].weapon);
+
+        //         if weapon_slot.is_none() {
+        //             *weapon_slot = Some(WeaponInstance::from_drop(self.weapons.remove(i)));
+        //         }
+        //     }
+        // }
         let mut deads = Vec::new();
         for (p, pickup) in self.pickups.iter().enumerate() {
             if (pickup.pos - player.obj.pos).norm() <= 16. {

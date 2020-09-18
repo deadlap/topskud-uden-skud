@@ -142,6 +142,7 @@ enum CommandError {
     NoCampaign,
     InvalidArg,
     NoSuchLevel,
+    NoSuchSpell,
 }
 
 impl Display for CommandError {
@@ -152,6 +153,7 @@ impl Display for CommandError {
             NoCampaign => "No campaign loaded".fmt(f),
             InvalidArg => "Invalid argument".fmt(f),
             NoSuchLevel => "No such level".fmt(f),
+            NoSuchSpell => "No such spell".fmt(f),
         }
     }
 }

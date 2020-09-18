@@ -1,4 +1,4 @@
-use std::f32::consts::FRAC_1_SQRT_2 as COS_45_D;
+use std::f32::consts::{FRAC_1_SQRT_2 as COS_45_D, PI};
 use crate::{
     ext::FloatExt,
     util::{
@@ -8,7 +8,9 @@ use crate::{
         Vector2, Point2
     },
     io::tex::PosText,
-    obj::{Object, projectile::Projectile, explosion::ExplosionUpdate, decal::Decal, pickup::Pickup, player::{Player}, enemy::{Enemy, Chaser}, health::Health},
+    obj::{Object, projectile::Projectile, explosion::{ExplosionUpdate, Explosion, EXPLOSIONS}, 
+        decal::Decal, pickup::Pickup, player::{Player, ElemSlots, ActiveSlot}, 
+        enemy::{Enemy, Chaser}, health::Health, spell::{Spell, CastType, SPELLS}},
     game::{
         DELTA, State, GameState, StateSwitch, world::{Level, Statistics, World},
         event::{Event::{self, Key, Mouse}, MouseButton, KeyCode, KeyMods}
@@ -61,7 +63,7 @@ pub struct Play {
 
 impl Play {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(ctx: &mut Context, s: &mut State, level: Level, pl: Option<(Health)>) -> GameResult<Box<dyn GameState>> {
+    pub fn new(ctx: &mut Context, s: &mut State, level: Level, pl: Option<Health>) -> GameResult<Box<dyn GameState>> {
         mouse::set_cursor_hidden(ctx, true);
 
         let mut player = Player::from_point(level.start_point.unwrap_or_else(|| Point2::new(500., 500.)));
@@ -290,6 +292,24 @@ impl GameState for Play {
         self.arm_text.draw_text(ctx)?;
         self.status_text.draw_center(ctx)?;
         
+        if let Some(slot_element) = &self.world.player.spell.slot {
+            let drawparams = DrawParam::from(([104., 2.],));
+            let img = s.assets.get_img(ctx, &slot_element.spell.element_type[0].get_spr());
+            graphics::draw(ctx, &*img, drawparams)?;
+        }
+        if let Some(slot_element) = &self.world.player.spell.slot2 {
+            let drawparams = DrawParam::from(([137., 2.],));
+            let img = s.assets.get_img(ctx, &slot_element.spell.element_type[0].get_spr());
+            graphics::draw(ctx, &*img, drawparams)?;
+        }
+        if let Some(slot_element) = &self.world.player.spell.slot3 {
+            let drawparams = DrawParam::from(([170., 2.],));
+            let img = s.assets.get_img(ctx, &slot_element.spell.element_type[0].get_spr());
+            graphics::draw(ctx, &*img, drawparams)?;
+        }
+        let selection = Mesh::new_rectangle(ctx, DrawMode::stroke(2.), RECTS[self.world.player.spell.active as u8 as usize], Color{r: 1., g: 1., b: 0., a: 1.})?;
+        graphics::draw(ctx, &selection, DrawParam::default())?;
+
         let drawparams = graphics::DrawParam {
             dest: s.mouse.into(),
             offset: Point2::new(0.5, 0.5).into(),
@@ -302,11 +322,16 @@ impl GameState for Play {
     fn event_up(&mut self, s: &mut State, ctx: &mut Context, event: Event) {
         use self::KeyCode::*;
         match event {
+            Key(Key1) | Key(Numpad1) => self.world.player.spell.switch(ActiveSlot::Slot),
+            Key(Key2) | Key(Numpad2) => self.world.player.spell.switch(ActiveSlot::Slot2),
+            Key(Key3) | Key(Numpad3) => self.world.player.spell.switch(ActiveSlot::Slot3),
             Key(G) => {
                 warn!("Dropped nothing");
             },
             Key(R) => {},
-            Key(F) => {},
+            Key(F) => {
+                self.world.player.spell.add_spell(SPELLS["fire"].make_instance());
+            },
             Mouse(MouseButton::Left) | Key(Space) => {
                 // TODO do knives with bullets too
                 let player = &mut self.world.player;
@@ -337,12 +362,21 @@ impl GameState for Play {
                 s.mplayer.play(ctx, if backstab {"shuk"} else {"hling"}).unwrap();
             }
             Mouse(MouseButton::Right) => {
-                if let Some(em) = self.world.player.utilities.Create_Explosion(ctx, &mut s.mplayer).unwrap() {
-                    let pos = s.mouse - s.offset;
-                    let mut expl = Object::new(pos);
-                    expl.rot = self.world.player.obj.rot;
-
-                    self.world.explosions.push(em.make(expl, 144.));
+                let player = &mut self.world.player;
+                if let Some(cur_spell) = player.spell.get_active_mut() {
+                    match cur_spell.spell.cast_type {
+                        CastType::Projectile{} => {
+                            
+                        }
+                        CastType::Explosion{} => {
+                            if let Some(em) = cur_spell.cast_explosion(ctx, &mut s.mplayer).unwrap() {
+                                let pos = player.obj.pos + cur_spell.spell.spell_range * angle_to_vec(player.obj.rot);
+                                let mut expl = Object::new(pos);
+                                expl.rot = player.obj.rot;
+                                self.world.explosions.push(em.make(expl));
+                            }
+                        }
+                    }
                 }
             }
             _ => (),
@@ -364,11 +398,10 @@ pub struct Hud {
     armour_bar: Mesh,
 }
 
-const RECTS: [Rect; 4] = [
+const RECTS: [Rect; 3] = [
     Rect{x:104.,y:2.,h: 32., w: 32.},
     Rect{x:137.,y:2.,h: 32., w: 32.},
-    Rect{x:104.,y:35.,h: 32., w: 32.},
-    Rect{x:137.,y:35.,h: 32., w: 32.}
+    Rect{x:170.,y:2.,h: 32., w: 32.},
 ];
 
 impl Hud {
@@ -379,8 +412,7 @@ impl Hud {
             .rectangle(DrawMode::fill(), Rect{x: 1., y: 57., w: 102., h: 26.}, graphics::BLACK)
             .rectangle(DrawMode::fill(), Rect{x:104.,y:2.,h: 32., w: 32.}, Color{r: 0.5, g: 0.5, b: 0.5, a: 1.})
             .rectangle(DrawMode::fill(), Rect{x:137.,y:2.,h: 32., w: 32.}, Color{r: 0.5, g: 0.5, b: 0.5, a: 1.})
-            .rectangle(DrawMode::fill(), Rect{x:104.,y:35.,h: 32., w: 32.}, Color{r: 0.5, g: 0.5, b: 0.5, a: 1.})
-            .rectangle(DrawMode::fill(), Rect{x:137.,y:35.,h: 32., w: 32.}, Color{r: 0.5, g: 0.5, b: 0.5, a: 1.})
+            .rectangle(DrawMode::fill(), Rect{x:170.,y:2.,h: 32., w: 32.}, Color{r: 0.5, g: 0.5, b: 0.5, a: 1.})
             .build(ctx)?;
 
         let hp_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 2., w: 0., h: 24.}, GREEN)?;
