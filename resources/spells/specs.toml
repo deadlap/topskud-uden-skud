@@ -2,9 +2,34 @@
 name = "fire-cone"
 cast_name = "fire_cone"
 element_type = ["fire"]
-spell_range = 12.0
-energy_cost = 0.0
+spell_range = 16.0
+pattern = [-1.6, 0.0, 1.6]
+energy_cost = 28.5
 cast_type = "explosion"
-cooldown_time = 0.0
+cooldown_time = 3.72
+charge_time = 0.0
+cast_snd = "boom"
+
+[fire2]
+name = "fire-cone"
+cast_name = "fire_cone"
+element_type = ["fire"]
+spell_range = 56.0
+pattern = [-28.6, 0.0, 28.6]
+energy_cost = 28.5
+cast_type = "explosion"
+cooldown_time = 3.2
+charge_time = 0.0
+cast_snd = "boom"
+
+[ice]
+name = "ice-spike"
+cast_name = "ice_spike"
+element_type = ["ice"]
+spell_range = 20.0
+pattern = [-8.6, -4.3, 0.0, 4.3, 8.6]
+energy_cost = 12.5
+cast_type = "projectile"
+cooldown_time = 0.82
 charge_time = 0.0
 cast_snd = "boom"

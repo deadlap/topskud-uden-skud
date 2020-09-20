@@ -42,6 +42,7 @@ pub struct SpellTemplate {
     #[serde(default = "def_charge")]
     #[serde(deserialize_with = "crate::util::deserialize_sstr")]
     charge_snd: Sstr,
+    pattern: Vec<f32>,
 }
 
 #[inline]
@@ -71,6 +72,7 @@ impl SpellTemplate {
             charge_time,
             cast_snd,
             charge_snd,
+            pattern,
         } = self;
 
         Spell {
@@ -85,6 +87,7 @@ impl SpellTemplate {
             charge_time,
             cast_snd,
             charge_snd,
+            pattern: pattern.into_iter().map(|deg| deg * DEG2RAD).collect(),
             // hands_sprite: sstr(entity_sprite.to_string() + "_hands"),
         }
     }

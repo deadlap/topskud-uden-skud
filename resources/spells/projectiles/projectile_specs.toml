@@ -1,0 +1,6 @@
+[ice_spike]
+damage = 48.0
+penetration = 0.87
+entity_sprite = "spells/projectiles/ice_projectile"
+speed = 800.0
+range = 320.0

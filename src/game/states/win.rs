@@ -4,7 +4,7 @@ use crate::{
         tex::PosText,
         btn::Button,
     },
-    obj::{health::Health, player},
+    obj::{health::Health, player, energy::Energy},
     game::{
         DELTA,
         State, Content, GameState, StateSwitch, world::{Level, Statistics},
@@ -35,6 +35,7 @@ pub struct Win {
     health_text: PosText,
     buttons: WinButtons,
     health: Health,
+    energy: Energy,
     level: Level,
 }
 
@@ -67,6 +68,7 @@ impl Win {
             health_text,
             level: stats.level,
             health: stats.health_left,
+            energy: stats.energy_left,
         }))
     }
     fn restart(&self, s: &mut State) {
@@ -88,7 +90,7 @@ impl Win {
             Content::None | Content::File(_) => return,
         }
 
-        s.switch(StateSwitch::PlayWith{health: self.health, lvl: Box::new(lvl)});
+        s.switch(StateSwitch::PlayWith{health: self.health, energy: self.energy, lvl: Box::new(lvl)});
     }
 }
 

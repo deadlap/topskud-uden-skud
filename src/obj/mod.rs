@@ -7,11 +7,13 @@ use ggez::graphics::{self, Image, Color};
 pub mod player;
 pub mod enemy;
 pub mod health;
+pub mod energy;
 pub mod spell;
 pub mod projectile;
 pub mod pickup;
 pub mod decal;
 pub mod explosion;
+// pub mod utilities;
 
 use crate::game::world::{Grid, Palette};
 use crate::game::DELTA;

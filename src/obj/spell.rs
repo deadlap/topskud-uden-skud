@@ -11,7 +11,12 @@ use crate::{
 };
 use ggez::{Context, GameResult};
 
-use super::{Object, player::Player, projectile::Projectile, explosion::{Explosion, ExplosionMaker}};
+use super::{Object, player::Player, projectile::{Projectile, ProjectileMaker}, explosion::{Explosion, ExplosionMaker}};
+
+pub enum ObjMaker<'a> {
+    Explosion(ExplosionMaker<'a>),
+    Projectile(ProjectileMaker<'a>)
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -34,7 +39,6 @@ impl Element {
             // Earth => "spells/elements//earth",
         }
     }
-
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -64,6 +68,7 @@ pub struct Spell {
     pub cast_snd: Sstr,
     pub charge_snd: Sstr,
     pub spell_range: f32,
+    pub pattern: Vec<f32>,
     // pub hands_sprite: Sstr,
 }
 
@@ -88,18 +93,28 @@ impl Spell {
 }
 impl<'a> SpellInstance<'a>{
 
-    pub fn update(){
-
+    pub fn can_cast_spell(&mut self) -> bool {
+        self.cooldown_time_left == 0.
     }
 
-    pub fn cast(&mut self, ctx: &mut Context, mplayer: &mut MediaPlayer) {
-        
+    pub fn update(&mut self, ctx: &mut Context, mplayer: &mut MediaPlayer) -> GameResult<()>{
+        if self.cooldown_time_left > DELTA {
+            self.cooldown_time_left -= DELTA
+        } else {
+            self.cooldown_time_left = 0.;
+        }
+        Ok(())
     }
-    
-    pub fn cast_explosion(&mut self, ctx: &mut Context, mplayer: &mut MediaPlayer) -> GameResult<Option<ExplosionMaker<'a>>> {
-        // if player.energy > self.spell.energy_cost {
+
+    pub fn cast(&mut self, ctx: &mut Context, mplayer: &mut MediaPlayer) -> GameResult<Option<ObjMaker<'a>>> {
+        // if self.cooldown_time_left == 0. {
         mplayer.play(ctx, "throw")?;
-        Ok(Some(ExplosionMaker(self.spell)))
+        // self.cooldown_time_left = self.spell.cooldown_time;
+        // use CastType::*;
+        match self.spell.cast_type {
+            CastType::Explosion => Ok(Some(ObjMaker::Explosion(ExplosionMaker(self.spell, &self.spell.pattern)))),
+            CastType::Projectile => Ok(Some(ObjMaker::Projectile(ProjectileMaker(self.spell, &self.spell.pattern)))),
+        }
         // } else {
         //     Ok(None)
         // }

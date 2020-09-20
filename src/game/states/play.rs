@@ -9,8 +9,8 @@ use crate::{
     },
     io::tex::PosText,
     obj::{Object, projectile::Projectile, explosion::{ExplosionUpdate, Explosion, EXPLOSIONS}, 
-        decal::Decal, pickup::Pickup, player::{Player, ElemSlots, ActiveSlot}, 
-        enemy::{Enemy, Chaser}, health::Health, spell::{Spell, CastType, SPELLS}},
+        decal::Decal, pickup::Pickup, player::{Player, ElemSlots, ActiveSlot}, energy::Energy, 
+        enemy::{Enemy, Chaser}, health::Health, spell::{Spell, CastType, SPELLS, ObjMaker}},
     game::{
         DELTA, State, GameState, StateSwitch, world::{Level, Statistics, World},
         event::{Event::{self, Key, Mouse}, MouseButton, KeyCode, KeyMods}
@@ -50,6 +50,8 @@ pub fn new_blood(mut obj: Object) -> Decal {
 pub struct Play {
     hp_text: PosText,
     arm_text: PosText,
+    energy_text: PosText,
+    // cooldown_text: PosText,
     status_text: PosText,
     hud: Hud,
     world: World,
@@ -57,26 +59,28 @@ pub struct Play {
     cur_pickup: Option<usize>,
     victory_time: f32,
     time: usize,
-    initial: Health,
+    initial: (Health, Energy),
     level: Level,
 }
 
 impl Play {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(ctx: &mut Context, s: &mut State, level: Level, pl: Option<Health>) -> GameResult<Box<dyn GameState>> {
+    pub fn new(ctx: &mut Context, s: &mut State, level: Level, pl: Option<(Health, Energy)>) -> GameResult<Box<dyn GameState>> {
         mouse::set_cursor_hidden(ctx, true);
 
         let mut player = Player::from_point(level.start_point.unwrap_or_else(|| Point2::new(500., 500.)));
-        if let Some(h) = pl {
-            player = player.with_health(h);
+        if let Some((h, e)) = pl {
+            player = player.with_health(h).with_energy(e);
         };
 
         Ok(Box::new(
             Play {
                 level: level.clone(),
-                initial: (player.health),
+                initial: (player.health, player.energy),
                 hp_text: s.assets.text(Point2::new(4., 4.)).and_text("100"),
                 arm_text: s.assets.text(Point2::new(4., 33.)).and_text("100"),
+                energy_text: s.assets.text(Point2::new(4., 62.)).and_text("100.0"),
+                // cooldown_text: s.assets.text(Point2::new(2., 87.)).and_text("0.0").and_text("s"),
                 status_text: s.assets.text(Point2::new(s.width as f32 / 2., s.height as f32 / 2. + 32.)).and_text(""),
                 hud: Hud::new(ctx)?,
                 time: 0,
@@ -109,9 +113,14 @@ impl Play {
 impl GameState for Play {
     #[allow(clippy::cognitive_complexity)]
     fn update(&mut self, s: &mut State, ctx: &mut Context) -> GameResult<()> {
+        self.world.player.update(ctx, &mut s.mplayer)?;
         self.hp_text.update(0, format!("{:02.0}", self.world.player.health.hp))?;
         self.arm_text.update(0, format!("{:02.0}", self.world.player.health.armour))?;
-        
+        // self.energy_text.update(0, format!("{:.1}", self.world.player.energy.cur_energy))?;
+        self.energy_text.update(0, format!("{:02.0}", self.world.player.energy.cur_energy))?;
+        // if let Some(spell) = self.world.player.spell.get_active() {
+        //     self.cooldown_text.update(0, format!("{:02.0}", spell.cooldown_time_left))?;
+        // }
         self.status_text.update(0, "")?;
 
         let mut deads = Vec::new();
@@ -130,7 +139,8 @@ impl GameState for Play {
                             s.switch(StateSwitch::Lose(Box::new(Statistics{
                                 time: self.time,
                                 enemies_left: self.world.enemies.len(),
-                                health_left: self.initial,
+                                health_left: self.initial.0,
+                                energy_left: self.initial.1,
                                 level: self.level.clone(),
                             })));
                             s.mplayer.play(ctx, "death")?;
@@ -167,6 +177,78 @@ impl GameState for Play {
         for i in deads {
             self.world.explosions.remove(i);
         }
+
+        let mut deads = Vec::new();
+        for (i, projectile) in self.world.projectiles.iter_mut().enumerate().rev() {
+            let hit = projectile.update(&self.world.palette, &self.world.grid, &mut self.world.player, &mut *self.world.enemies);
+
+            use crate::obj::projectile::Hit;
+
+            match hit {
+                Hit::None => (),
+                // _ if projectile.weapon.bullet_type == BulletType::Rocket => {
+                //     let gren = Object::new(bullet.obj.pos - angle_to_vec(bullet.obj.rot));
+                //     let nade = GrenadeMaker(0.).make_with_fuse(gren,0.);
+                //     self.world.grenades.push(nade);
+                //     // Du skal huske at slette bulletten bagefter, et òg @deadlap
+                //     deads.push(i);
+                // }
+                Hit::Wall => {
+                    s.mplayer.play(ctx, &projectile.projectile.impact_snd)?;
+                    let dir = angle_to_vec(projectile.obj.rot);
+                    projectile.obj.pos += Vector2::new(5.*dir.x.signum(), 5.*dir.y.signum());
+                    self.holes.add(projectile.obj.drawparams());
+                    deads.push(i);
+                }
+                Hit::Player => {
+                    deads.push(i);
+                    self.world.decals.push(new_blood(projectile.obj.clone()));
+                    s.mplayer.play(ctx, "hit")?;
+
+                    if self.world.player.health.is_dead() {
+                        s.switch(StateSwitch::Lose(Box::new(Statistics{
+                            time: self.time,
+                            enemies_left: self.world.enemies.len(),
+                            health_left: self.initial.0,
+                            energy_left: self.initial.1,
+                            level: self.level.clone(),
+                        })));
+                        s.mplayer.play(ctx, "death")?;
+                    } else {
+                        s.mplayer.play(ctx, "hurt")?;
+                    }
+                }
+                Hit::Enemy(e) => {
+                    // if !bullet.weapon.bullet_type.piercing() {
+                    // }
+                    deads.push(i);
+                    let enemy = &self.world.enemies[e];
+                    s.mplayer.play(ctx, "hit")?;
+                    
+                    self.world.decals.push(new_blood(projectile.obj.clone()));
+                    if enemy.pl.health.is_dead() {
+                        s.mplayer.play(ctx, "death")?;
+                        
+                        let Enemy{pl: Player{spell, obj: Object{pos, ..}, ..}, ..}
+                        = self.world.enemies.remove(e);
+                        // for wep in wep {
+                        //     self.world.weapons.push(wep.into_drop(pos));
+                        // }
+                    } else {
+                        if !enemy.behaviour.chasing() {
+                            self.world.enemies[e].behaviour = Chaser::LookAround{
+                                dir: projectile.obj.pos - enemy.pl.obj.pos
+                            };
+                        }
+                        s.mplayer.play(ctx, "hurt")?;
+                    }
+                }
+            }
+        }
+        for i in deads {
+            self.world.projectiles.remove(i);
+        }
+
         let mut deads = Vec::new(); 
         for (i, &intel) in self.world.intels.iter().enumerate().rev() {
             if (intel-self.world.player.obj.pos).norm() <= 15. {
@@ -228,6 +310,7 @@ impl GameState for Play {
                 time: self.time,
                 enemies_left: self.world.enemies.len(),
                 health_left: self.world.player.health,
+                energy_left: self.world.player.energy,
             })));
         }
         Ok(())
@@ -278,7 +361,10 @@ impl GameState for Play {
         for enemy in &self.world.enemies {
             enemy.draw(ctx, &s.assets, WHITE)?;
         }
-        
+        for projectile in &self.world.projectiles {
+            projectile.draw(ctx, &s.assets)?;
+            // projectile.draw(ctx, &s.assets, &self.world.palette, &self.world.grid)?;
+        }
         for explosion in &self.world.explosions {
             explosion.draw(ctx, &s.assets)?;
         }
@@ -290,8 +376,10 @@ impl GameState for Play {
 
         self.hp_text.draw_text(ctx)?;
         self.arm_text.draw_text(ctx)?;
+        self.energy_text.draw_text(ctx)?;
+        // self.cooldown_text.draw_text(ctx)?;
         self.status_text.draw_center(ctx)?;
-        
+
         if let Some(slot_element) = &self.world.player.spell.slot {
             let drawparams = DrawParam::from(([104., 2.],));
             let img = s.assets.get_img(ctx, &slot_element.spell.element_type[0].get_spr());
@@ -328,7 +416,9 @@ impl GameState for Play {
             Key(G) => {
                 warn!("Dropped nothing");
             },
-            Key(R) => {},
+            Key(R) => {
+                self.world.player.spell.add_spell(SPELLS["ice"].make_instance());
+            },
             Key(F) => {
                 self.world.player.spell.add_spell(SPELLS["fire"].make_instance());
             },
@@ -364,16 +454,25 @@ impl GameState for Play {
             Mouse(MouseButton::Right) => {
                 let player = &mut self.world.player;
                 if let Some(cur_spell) = player.spell.get_active_mut() {
-                    match cur_spell.spell.cast_type {
-                        CastType::Projectile{} => {
-                            
-                        }
-                        CastType::Explosion{} => {
-                            if let Some(em) = cur_spell.cast_explosion(ctx, &mut s.mplayer).unwrap() {
-                                let pos = player.obj.pos + cur_spell.spell.spell_range * angle_to_vec(player.obj.rot);
-                                let mut expl = Object::new(pos);
-                                expl.rot = player.obj.rot;
-                                self.world.explosions.push(em.make(expl));
+                    let pos = player.obj.pos;
+                    let mut obj = Object::new(pos);
+                    obj.rot = player.obj.rot;
+                    if player.energy.try_to_use_energy(cur_spell.spell.energy_cost) {
+
+                        match cur_spell.spell.cast_type {
+                            CastType::Projectile{} => {
+                                if let Some(ObjMaker::Projectile(pm)) = cur_spell.cast(ctx, &mut s.mplayer).unwrap() {
+                                    for projectile in pm.make(obj) {
+                                        self.world.projectiles.push(projectile);
+                                    }
+                                }
+                            }
+                            CastType::Explosion{} => {
+                                if let Some(ObjMaker::Explosion(em)) = cur_spell.cast(ctx, &mut s.mplayer).unwrap() {
+                                    for explosion in em.make(obj) {
+                                        self.world.explosions.push(explosion);
+                                    }
+                                }
                             }
                         }
                     }
@@ -396,6 +495,8 @@ pub struct Hud {
     hud_bar: Mesh,
     hp_bar: Mesh,
     armour_bar: Mesh,
+    energy_bar: Mesh,
+    // cooldown_bar: Mesh,
 }
 
 const RECTS: [Rect; 3] = [
@@ -410,6 +511,7 @@ impl Hud {
             .rectangle(DrawMode::fill(), Rect{x: 1., y: 1., w: 102., h: 26.}, graphics::BLACK)
             .rectangle(DrawMode::fill(), Rect{x: 1., y: 29., w: 102., h: 26.}, graphics::BLACK)
             .rectangle(DrawMode::fill(), Rect{x: 1., y: 57., w: 102., h: 26.}, graphics::BLACK)
+            .rectangle(DrawMode::fill(), Rect{x: 1., y: 85., w: 102., h: 26.}, graphics::BLACK)
             .rectangle(DrawMode::fill(), Rect{x:104.,y:2.,h: 32., w: 32.}, Color{r: 0.5, g: 0.5, b: 0.5, a: 1.})
             .rectangle(DrawMode::fill(), Rect{x:137.,y:2.,h: 32., w: 32.}, Color{r: 0.5, g: 0.5, b: 0.5, a: 1.})
             .rectangle(DrawMode::fill(), Rect{x:170.,y:2.,h: 32., w: 32.}, Color{r: 0.5, g: 0.5, b: 0.5, a: 1.})
@@ -417,22 +519,33 @@ impl Hud {
 
         let hp_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 2., w: 0., h: 24.}, GREEN)?;
         let armour_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 30., w: 0., h: 24.}, BLUE)?;
+        let energy_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 58., w: 0., h: 24.}, BLUE)?;
+        // let cooldown_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 86., w: 0., h: 24.}, RED)?;
 
         Ok(Hud{
             hud_bar,
             hp_bar,
             armour_bar,
+            energy_bar,
+            // cooldown_bar,
         })
     }
     pub fn update_bars(&mut self, ctx: &mut Context, p: &Player) -> GameResult<()> {
         self.hp_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 2., w: p.health.hp.limit(0., 100.), h: 24.}, GREEN)?;
         self.armour_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 30., w: p.health.armour.limit(0., 100.), h: 24.}, BLUE)?;
-
+        self.energy_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 58., w: p.energy.cur_energy.limit(0., p.energy.max_energy), h: 24.}, BLUE)?;
+        // if let Some(spell) = p.spell.get_active() {
+        //     self.cooldown_bar = Mesh::new_rectangle(ctx, DrawMode::fill(), Rect{x: 2., y: 86., 
+        //         w: p.spell.get_active().map(|m| m.cooldown_time_left).unwrap_or(0.).limit(0., 1.)
+        //             *100., h: 24.}, RED)?;
+        // }
         Ok(())
     }
     pub fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         self.hud_bar.draw(ctx, Default::default())?;
         self.hp_bar.draw(ctx, Default::default())?;
-        self.armour_bar.draw(ctx, Default::default())
+        self.armour_bar.draw(ctx, Default::default())?;
+        self.energy_bar.draw(ctx, Default::default())
+        // self.cooldown_bar.draw(ctx, Default::default())
     }
 }

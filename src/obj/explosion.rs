@@ -16,10 +16,6 @@ use crate::{
 };
 use super::{Object, player::Player, enemy::Enemy, health::Health, spell::{Spell}};
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Utilities {
-}
-
 #[derive(Debug, Clone)]
 pub struct Explosion {
     pub id: Sstr,
@@ -180,19 +176,26 @@ impl ExplosionInstance<'_> {
     }
 }
 
-pub struct ExplosionMaker<'a>(pub &'a Spell);
+pub struct ExplosionMaker<'a>(pub &'a Spell, pub &'a Vec<f32>);
 impl<'a> ExplosionMaker<'a> {
-    pub fn make(self, obj: Object) -> ExplosionInstance<'a> {
-        let spell = self.0;
+    pub fn make(self, obj: Object) -> impl Iterator<Item=ExplosionInstance<'a>> {
+        let ExplosionMaker(spell, offsets) = self;
         let explosion = &EXPLOSIONS[spell.cast_name];
-        ExplosionInstance {
-            updated_degrees: if obj.rot > 0. {1.} else {-1.} * explosion.degrees,
-            obj,
-            spell,
-            fuse: explosion.start_fuse,
-            state: ExplosionState::Fused{fuse: explosion.start_fuse},
-            explosion,
-        }
+
+        offsets.into_iter().map(move |offset| {
+            let mut obj = obj.clone();
+
+            obj.rot += offset;
+            obj.pos += spell.spell_range * angle_to_vec(obj.rot);
+            ExplosionInstance {
+                updated_degrees: if obj.rot > 0. {1.} else {-1.} * explosion.degrees,
+                obj,
+                spell,
+                fuse: explosion.start_fuse,
+                state: ExplosionState::Fused{fuse: explosion.start_fuse},
+                explosion,
+            }
+        })
     }
 }
 

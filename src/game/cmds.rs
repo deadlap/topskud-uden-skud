@@ -3,7 +3,7 @@ use super::{Console, State, GameState, Command, CommandError, Content, StateSwit
 
 use crate::{
     util::dbg_strs,
-    obj::{health::Health},
+    obj::{health::Health, energy::Energy},
 };
 use ggez::Context;
 
@@ -82,8 +82,12 @@ pub(super) fn commands() -> HashMap<String, Command> {
                 } else {
                     (Health::default())
                 };
-
-                state.switch(StateSwitch::PlayWith{health, lvl: Box::new(lvl)});
+                let (health, energy) = if let Some(world) = gs.get_world() {
+                    (world.player.health, world.player.energy)
+                } else {
+                    (Health::default(), Energy::default())
+                };
+                state.switch(StateSwitch::PlayWith{health, energy, lvl: Box::new(lvl)});
             } else {
                 info!("{} levels. Current is {}", cmp.levels.len(), cmp.current);
             }

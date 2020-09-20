@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-use super::{Object, health::Health, spell::{SpellInstance, Spell}, explosion::{Explosion, ExplosionInstance, Utilities}, projectile::{Projectile, ProjectileInstance}};
+use super::{Object, energy::Energy, health::Health, spell::{SpellInstance, Spell, Element}, explosion::{Explosion, ExplosionInstance}, projectile::{Projectile, ProjectileInstance}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
@@ -18,13 +18,14 @@ pub struct Player {
     #[serde(skip)]
     pub health: Health,
     #[serde(skip)]
-    pub spell: ElemSlots
+    pub spell: ElemSlots,
+    #[serde(skip)]
+    pub energy: Energy,
 }
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveSlot {
-    // Knife = 0,
     Slot = 0,
     Slot2 = 1,
     Slot3 = 2,
@@ -35,7 +36,6 @@ impl ActiveSlot {
     fn subtract(&mut self) {
         use self::ActiveSlot::*;
         *self = match *self {
-            // Knife => Knife,
             Slot => Slot,
             Slot2 => Slot,
             Slot3 => Slot2,
@@ -51,8 +51,8 @@ impl Default for ActiveSlot {
 
 #[derive(Debug, Default, Clone)]
 pub struct ElemSlots {
+    pub cur_spell: Option<SpellInstance<'static>>,
     pub active: ActiveSlot,
-    pub utilities: Utilities,
     pub slot: Option<SpellInstance<'static>>,
     pub slot2: Option<SpellInstance<'static>>,
     pub slot3: Option<SpellInstance<'static>>,
@@ -62,13 +62,12 @@ impl ElemSlots {
     #[inline(always)]
     pub fn slot_has_element(&self, new_active: ActiveSlot) -> bool {
         match new_active {
-            // ActiveSlot::Knife => true,
             ActiveSlot::Slot => self.slot.is_some(),
             ActiveSlot::Slot2 => self.slot2.is_some(),
             ActiveSlot::Slot3 => self.slot3.is_some(),
         }
     }
-    /// Set active to first weapon, falling back to knife
+    /// Set active to first weapon
     pub fn init_active(&mut self) {
         self.active = match self {
             ElemSlots{slot: Some(_), ..} => ActiveSlot::Slot,
@@ -137,7 +136,8 @@ impl IntoIterator for ElemSlots {
     type Item = <Self::IntoIter as Iterator>::Item;
     fn into_iter(self) -> Self::IntoIter {
         #[allow(clippy::unneeded_field_pattern)]
-        let ElemSlots{active: _, utilities: _, slot, slot2, slot3} = self;
+        let ElemSlots{cur_spell: _, active: _, slot, slot2, slot3} = self;
+        // let ElemSlots{cur_spell: _, active: _, utilities: _, slot, slot2, slot3} = self;
 
         slot.into_iter().chain(slot2).chain(slot3)
     }
@@ -149,6 +149,7 @@ impl Player {
             obj,
             spell: Default::default(),
             health: Health::default(),
+            energy: Energy::default(),
         }
     }
     #[inline]
@@ -159,6 +160,13 @@ impl Player {
     pub fn with_health(self, health: Health) -> Self {
         Self {
             health,
+            .. self
+        }
+    }
+    #[inline]
+    pub fn with_energy(self, energy: Energy) -> Self {
+        Self {
+            energy,
             .. self
         }
     }
@@ -193,6 +201,10 @@ impl Player {
         self.obj.draw(ctx, &*img, color)
     }
     pub fn update(&mut self, ctx: &mut Context, mplayer: &mut MediaPlayer) -> GameResult<()> {
+        if let Some(cur_spell) = self.spell.get_active_mut() {
+            cur_spell.update(ctx, mplayer)?;
+        }
+        self.energy.update();
         Ok(())
     }
 }

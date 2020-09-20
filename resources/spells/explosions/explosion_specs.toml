@@ -1,8 +1,8 @@
 [fire_cone]
-low_damage = 55.0
-high_damage = 105.0
-penetration = 0.85
-start_fuse = 1.05
+low_damage = 35.0
+high_damage = 85.0
+penetration = 0.67
+start_fuse = 0.12
 entity_sprite = "spells/explosions/explosion"
 range = 144.0
 degrees = 120.0

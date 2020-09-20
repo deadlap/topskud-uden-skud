@@ -8,7 +8,7 @@ use crate::{
         snd::MediaPlayer,
         tex::{Assets, PosText},
     },
-    obj::{health::Health},
+    obj::{health::Health, energy::Energy},
 };
 use ggez::{
     nalgebra::Matrix4,
@@ -37,6 +37,7 @@ pub enum StateSwitch {
     PlayWith{
         lvl: Box<Level>,
         health: Health,
+        energy: Energy
     },
     Lose(Box<Statistics>),
     Win(Box<Statistics>),
@@ -142,6 +143,7 @@ enum CommandError {
     NoCampaign,
     InvalidArg,
     NoSuchLevel,
+    NoSuchElement,
     NoSuchSpell,
 }
 
@@ -153,6 +155,7 @@ impl Display for CommandError {
             NoCampaign => "No campaign loaded".fmt(f),
             InvalidArg => "Invalid argument".fmt(f),
             NoSuchLevel => "No such level".fmt(f),
+            NoSuchElement => "No such element".fmt(f),
             NoSuchSpell => "No such spell".fmt(f),
         }
     }
@@ -318,7 +321,7 @@ impl EventHandler for Master {
 
             use self::StateSwitch::*;
             self.gs = match gsb {
-                PlayWith{lvl, health} => states::play::Play::new(ctx, &mut self.state, *lvl, Some(health)),
+                PlayWith{lvl, health, energy} => states::play::Play::new(ctx, &mut self.state, *lvl, Some((health, energy))),
                 Play(lvl) => states::play::Play::new(ctx, &mut self.state, lvl, None),
                 Menu => states::menu::Menu::new(ctx, &mut self.state),
                 Editor(l) => states::editor::Editor::new(&self.state, l),

@@ -1,7 +1,7 @@
 use ggez::{Context, GameResult, graphics::WHITE};
 
 use crate::{
-    util::{Vector2, Sstr},
+    util::{Vector2, Sstr, angle_to_vec},
     game::{
         DELTA,
         world::{Grid, Palette},
@@ -86,4 +86,24 @@ pub enum Hit {
     Player,
     Enemy(usize),
     None,
+}
+
+pub struct ProjectileMaker<'a>(pub &'a Spell, pub &'a Vec<f32>);
+impl<'a> ProjectileMaker<'a> {
+    pub fn make(self, obj: Object) -> impl Iterator<Item=ProjectileInstance<'a>> {
+        let ProjectileMaker(spell, offsets) = self;
+        let projectile = &PROJECTILES[spell.cast_name];
+
+        offsets.into_iter().map(move |offset| {
+            let mut obj = obj.clone();
+            obj.rot += offset;
+            obj.pos += spell.spell_range * angle_to_vec(obj.rot);
+            ProjectileInstance {
+                vel: projectile.speed * angle_to_vec(obj.rot),
+                obj,
+                spell,
+                projectile
+            }
+        })
+    }
 }
