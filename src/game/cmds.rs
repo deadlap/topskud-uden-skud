@@ -49,6 +49,11 @@ pub(super) fn commands() -> HashMap<String, Command> {
             world.player.health.armour = 100.;
             Ok(())
         },
+        "fe", "fullenergy" => {
+            let world = gs.get_mut_world().ok_or(NoWorld)?;
+            world.player.energy.cur_energy = 100.;
+            Ok(())
+        },
         "god" => {
             let world = gs.get_mut_world().ok_or(NoWorld)?;
             if world.player.health.hp.is_finite() {
@@ -57,6 +62,19 @@ pub(super) fn commands() -> HashMap<String, Command> {
             } else {
                 world.player.health.hp = 100.;
                 info!("God off");
+            }
+            Ok(())
+        },
+        "godenergy", "ge" => {
+            let world = gs.get_mut_world().ok_or(NoWorld)?;
+            if world.player.energy.max_energy.is_finite() {
+                world.player.energy.max_energy = std::f32::INFINITY;
+                world.player.energy.cur_energy = std::f32::INFINITY;
+                info!("god-energy on");
+            } else {
+                world.player.energy.cur_energy = 100.;
+                world.player.energy.max_energy = 100.;
+                info!("God-energy off");
             }
             Ok(())
         },

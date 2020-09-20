@@ -10,7 +10,7 @@ use crate::{
     io::tex::PosText,
     obj::{Object, projectile::Projectile, explosion::{ExplosionUpdate, Explosion, EXPLOSIONS}, 
         decal::Decal, pickup::Pickup, player::{Player, ElemSlots, ActiveSlot}, energy::Energy, 
-        enemy::{Enemy, Chaser}, health::Health, spell::{Spell, CastType, SPELLS, ObjMaker}},
+        enemy::{Enemy, Chaser}, health::Health, spell::{Spell, CastType, SPELLS, ObjMaker, Element}},
     game::{
         DELTA, State, GameState, StateSwitch, world::{Level, Statistics, World},
         event::{Event::{self, Key, Mouse}, MouseButton, KeyCode, KeyMods}
@@ -382,17 +382,17 @@ impl GameState for Play {
 
         if let Some(slot_element) = &self.world.player.spell.slot {
             let drawparams = DrawParam::from(([104., 2.],));
-            let img = s.assets.get_img(ctx, &slot_element.spell.element_type[0].get_spr());
+            let img = s.assets.get_img(ctx, &slot_element.get_spr());
             graphics::draw(ctx, &*img, drawparams)?;
         }
         if let Some(slot_element) = &self.world.player.spell.slot2 {
             let drawparams = DrawParam::from(([137., 2.],));
-            let img = s.assets.get_img(ctx, &slot_element.spell.element_type[0].get_spr());
+            let img = s.assets.get_img(ctx, &slot_element.get_spr());
             graphics::draw(ctx, &*img, drawparams)?;
         }
         if let Some(slot_element) = &self.world.player.spell.slot3 {
             let drawparams = DrawParam::from(([170., 2.],));
-            let img = s.assets.get_img(ctx, &slot_element.spell.element_type[0].get_spr());
+            let img = s.assets.get_img(ctx, &slot_element.get_spr());
             graphics::draw(ctx, &*img, drawparams)?;
         }
         let selection = Mesh::new_rectangle(ctx, DrawMode::stroke(2.), RECTS[self.world.player.spell.active as u8 as usize], Color{r: 1., g: 1., b: 0., a: 1.})?;
@@ -417,10 +417,10 @@ impl GameState for Play {
                 warn!("Dropped nothing");
             },
             Key(R) => {
-                self.world.player.spell.add_spell(SPELLS["ice"].make_instance());
+                self.world.player.spell.add_element(Element::Ice);
             },
             Key(F) => {
-                self.world.player.spell.add_spell(SPELLS["fire"].make_instance());
+                self.world.player.spell.add_element(Element::Fire);
             },
             Mouse(MouseButton::Left) | Key(Space) => {
                 // TODO do knives with bullets too
@@ -453,7 +453,7 @@ impl GameState for Play {
             }
             Mouse(MouseButton::Right) => {
                 let player = &mut self.world.player;
-                if let Some(cur_spell) = player.spell.get_active_mut() {
+                if let Some(cur_spell) = player.spell.get_cur_mut() {
                     let pos = player.obj.pos;
                     let mut obj = Object::new(pos);
                     obj.rot = player.obj.rot;

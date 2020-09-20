@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-use super::{Object, energy::Energy, health::Health, spell::{SpellInstance, Spell, Element}, explosion::{Explosion, ExplosionInstance}, projectile::{Projectile, ProjectileInstance}};
+use super::{Object, energy::Energy, health::Health, spell::{SpellInstance, SPELLS, Spell, Element}, explosion::{Explosion, ExplosionInstance}, projectile::{Projectile, ProjectileInstance}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
@@ -52,10 +52,14 @@ impl Default for ActiveSlot {
 #[derive(Debug, Default, Clone)]
 pub struct ElemSlots {
     pub cur_spell: Option<SpellInstance<'static>>,
+    // pub cur_elements: Vec<Element>,
     pub active: ActiveSlot,
-    pub slot: Option<SpellInstance<'static>>,
-    pub slot2: Option<SpellInstance<'static>>,
-    pub slot3: Option<SpellInstance<'static>>,
+    pub slot: Option<Element>,
+    pub slot2: Option<Element>,
+    pub slot3: Option<Element>,
+    // pub slot: Option<SpellInstance<'static>>,
+    // pub slot2: Option<SpellInstance<'static>>,
+    // pub slot3: Option<SpellInstance<'static>>,
 }
 
 impl ElemSlots {
@@ -67,7 +71,6 @@ impl ElemSlots {
             ActiveSlot::Slot3 => self.slot3.is_some(),
         }
     }
-    /// Set active to first weapon
     pub fn init_active(&mut self) {
         self.active = match self {
             ElemSlots{slot: Some(_), ..} => ActiveSlot::Slot,
@@ -80,11 +83,12 @@ impl ElemSlots {
     pub fn switch(&mut self, new_active: ActiveSlot) {
         if self.slot_has_element(new_active) {
             self.active = new_active;
+            self.cur_spell = self.find_current_spell();
         }
     }
     #[must_use]
-    pub fn take_active(&mut self) -> Option<SpellInstance<'static>> {
-        let wep = match self.active {
+    pub fn take_active(&mut self) -> Option<Element> {
+        let spe = match self.active {
             ActiveSlot::Slot => std::mem::take(&mut self.slot),
             ActiveSlot::Slot2 => std::mem::take(&mut self.slot2),
             ActiveSlot::Slot3 => std::mem::take(&mut self.slot3),
@@ -92,10 +96,10 @@ impl ElemSlots {
         while !self.slot_has_element(self.active) {
             self.active.subtract();
         }
-        wep
+        spe
     }
     #[inline(always)]
-    pub fn get_active(&self) -> Option<&SpellInstance<'static>> {
+    pub fn get_active_element(&self) -> Option<&Element> {
         match self.active {
             ActiveSlot::Slot => self.slot.as_ref(),
             ActiveSlot::Slot2 => self.slot2.as_ref(),
@@ -103,7 +107,7 @@ impl ElemSlots {
         }
     }
     #[inline(always)]
-    pub fn get_active_mut(&mut self) -> Option<&mut SpellInstance<'static>> {
+    pub fn get_active_element_mut(&mut self) -> Option<&mut Element> {
         match self.active {
             ActiveSlot::Slot => self.slot.as_mut(),
             ActiveSlot::Slot2 => self.slot2.as_mut(),
@@ -111,7 +115,7 @@ impl ElemSlots {
         }
     }
     #[must_use]
-    pub fn insert(&mut self, spell: &Spell) -> &mut Option<SpellInstance<'static>> {
+    pub fn insert(&mut self, element: &Element) -> &mut Option<Element> {
         match self {
             ElemSlots{slot: ref mut s @ None, ..} |
             ElemSlots{slot2: ref mut s @ None, ..} |
@@ -123,21 +127,38 @@ impl ElemSlots {
     }
     #[must_use]
     #[inline]
-    pub fn add_spell(&mut self, spell_instance: SpellInstance<'static>) -> Option<SpellInstance<'static>> {
-        std::mem::replace(self.insert(&spell_instance.spell), Some(spell_instance))
+    pub fn add_element(&mut self, element: Element) -> Option<Element> {
+        std::mem::replace(self.insert(&element), Some(element))
+    }
+    pub fn find_current_spell(&mut self) -> Option<SpellInstance<'static>> {
+        if let Some(active_element) = self.get_active_element() {
+            if let Some((_, spell)) = SPELLS.iter().find(
+            |&spe| spe.1.element_type.contains(active_element) 
+            ) {
+                return Some(spell.make_instance())
+            }
+        }
+        None
+    }
+    #[inline(always)]
+    pub fn get_cur(&self) -> Option<&SpellInstance<'static>> {
+        self.cur_spell.as_ref()
+    }
+    #[inline(always)]
+    pub fn get_cur_mut(&mut self) -> Option<&mut SpellInstance<'static>> {
+        self.cur_spell.as_mut()
     }
 }
 
 impl IntoIterator for ElemSlots {
     type IntoIter = Chain<
-        Chain<IntoIter<SpellInstance<'static>>, IntoIter<SpellInstance<'static>>>,
-        IntoIter<SpellInstance<'static>>,
+        Chain<IntoIter<Element>, IntoIter<Element>>,
+        IntoIter<Element>,
     >;
     type Item = <Self::IntoIter as Iterator>::Item;
     fn into_iter(self) -> Self::IntoIter {
         #[allow(clippy::unneeded_field_pattern)]
         let ElemSlots{cur_spell: _, active: _, slot, slot2, slot3} = self;
-        // let ElemSlots{cur_spell: _, active: _, utilities: _, slot, slot2, slot3} = self;
 
         slot.into_iter().chain(slot2).chain(slot3)
     }
@@ -201,9 +222,16 @@ impl Player {
         self.obj.draw(ctx, &*img, color)
     }
     pub fn update(&mut self, ctx: &mut Context, mplayer: &mut MediaPlayer) -> GameResult<()> {
-        if let Some(cur_spell) = self.spell.get_active_mut() {
-            cur_spell.update(ctx, mplayer)?;
+        if self.spell.cur_spell.is_none() && self.spell.get_active_element().is_some() {
+            self.spell.cur_spell = self.spell.find_current_spell();
         }
+
+        if let Some(spell) = self.spell.get_cur_mut() {
+            spell.update(ctx, mplayer)?;
+        }
+        // if let Some(curent_element) = self.spell.get_active_mut() {
+            // curent_spell.update(ctx, mplayer)?;
+        // }
         self.energy.update();
         Ok(())
     }
