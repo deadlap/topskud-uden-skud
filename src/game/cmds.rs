@@ -3,7 +3,7 @@ use super::{Console, State, GameState, Command, CommandError, Content, StateSwit
 
 use crate::{
     util::dbg_strs,
-    obj::{health::Health, energy::Energy},
+    obj::{health::Health, energy::Energy, spell::{Element}},
 };
 use ggez::Context;
 
@@ -89,23 +89,26 @@ pub(super) fn commands() -> HashMap<String, Command> {
             }
             Ok(())
         },
+        "elem" => {
+            let world = gs.get_mut_world().ok_or(NoWorld)?;
+            let &elem = args.get(1).ok_or(InvalidArg)?;
+            let element = Element::get_from_str(elem).ok_or(NoSuchElement)?;
+
+            let _= world.player.spell.add_element(element);
+            Ok(())
+        },
         "cmp" => {if let Content::Campaign(ref mut cmp) = state.content {
             if let Some(i) = args.get(1) {
                 let i = i.parse().map_err(|_| InvalidArg)?;
                 cmp.current = i;
                 let lvl = cmp.next_level().ok_or(NoSuchLevel)?;
-
-                let health = if let Some(world) = gs.get_world() {
-                    (world.player.health)
+                
+                let (health, energy, spell) = if let Some(world) = gs.get_world() {
+                    (world.player.health, world.player.energy, world.player.spell.clone())
                 } else {
-                    (Health::default())
+                    (Health::default(), Energy::default(), Default::default())
                 };
-                let (health, energy) = if let Some(world) = gs.get_world() {
-                    (world.player.health, world.player.energy)
-                } else {
-                    (Health::default(), Energy::default())
-                };
-                state.switch(StateSwitch::PlayWith{health, energy, lvl: Box::new(lvl)});
+                state.switch(StateSwitch::PlayWith{health, energy, spell, lvl: Box::new(lvl)});
             } else {
                 info!("{} levels. Current is {}", cmp.levels.len(), cmp.current);
             }

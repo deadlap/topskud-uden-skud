@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-use super::{Object, energy::Energy, health::Health, spell::{SpellInstance, SPELLS, Spell, Element}, explosion::{Explosion, ExplosionInstance}, projectile::{Projectile, ProjectileInstance}};
+use super::{Object, energy::Energy, health::Health, spell::{SpellInstance, SPELLS, Element}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
@@ -57,9 +57,6 @@ pub struct ElemSlots {
     pub slot: Option<Element>,
     pub slot2: Option<Element>,
     pub slot3: Option<Element>,
-    // pub slot: Option<SpellInstance<'static>>,
-    // pub slot2: Option<SpellInstance<'static>>,
-    // pub slot3: Option<SpellInstance<'static>>,
 }
 
 impl ElemSlots {
@@ -83,6 +80,9 @@ impl ElemSlots {
     pub fn switch(&mut self, new_active: ActiveSlot) {
         if self.slot_has_element(new_active) {
             self.active = new_active;
+            if let Some(cur_spell) = self.get_cur_mut() {
+                cur_spell.being_charged = false;
+            }
             self.cur_spell = self.find_current_spell();
         }
     }
@@ -115,7 +115,7 @@ impl ElemSlots {
         }
     }
     #[must_use]
-    pub fn insert(&mut self, element: &Element) -> &mut Option<Element> {
+    pub fn insert(&mut self) -> &mut Option<Element> {
         match self {
             ElemSlots{slot: ref mut s @ None, ..} |
             ElemSlots{slot2: ref mut s @ None, ..} |
@@ -128,7 +128,7 @@ impl ElemSlots {
     #[must_use]
     #[inline]
     pub fn add_element(&mut self, element: Element) -> Option<Element> {
-        std::mem::replace(self.insert(&element), Some(element))
+        std::mem::replace(self.insert(), Some(element))
     }
     pub fn find_current_spell(&mut self) -> Option<SpellInstance<'static>> {
         if let Some(active_element) = self.get_active_element() {
@@ -225,13 +225,9 @@ impl Player {
         if self.spell.cur_spell.is_none() && self.spell.get_active_element().is_some() {
             self.spell.cur_spell = self.spell.find_current_spell();
         }
-
         if let Some(spell) = self.spell.get_cur_mut() {
             spell.update(ctx, mplayer)?;
         }
-        // if let Some(curent_element) = self.spell.get_active_mut() {
-            // curent_spell.update(ctx, mplayer)?;
-        // }
         self.energy.update();
         Ok(())
     }

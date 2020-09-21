@@ -10,6 +10,21 @@ use crate::{
 };
 use super::{Object, player::Player, enemy::Enemy, health::Health, spell::{Spell}};
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProjectileType {
+    Common,
+    Laser,
+    Bouncy,
+    Piercing,
+    Explosive,
+    Jumps,
+}
+impl Default for ProjectileType {
+    fn default() -> Self{
+        ProjectileType::Common
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Projectile<> {
     pub id: Sstr,
@@ -88,13 +103,13 @@ pub enum Hit {
     None,
 }
 
-pub struct ProjectileMaker<'a>(pub &'a Spell, pub &'a Vec<f32>);
+pub struct ProjectileMaker<'a>(pub &'a Spell, pub &'a Vec<f32>, pub f32);
 impl<'a> ProjectileMaker<'a> {
     pub fn make(self, obj: Object) -> impl Iterator<Item=ProjectileInstance<'a>> {
-        let ProjectileMaker(spell, offsets) = self;
+        let ProjectileMaker(spell, offsets, ratio) = self;
         let projectile = &PROJECTILES[spell.cast_name];
 
-        offsets.into_iter().map(move |offset| {
+        offsets.iter().map(move |offset| {
             let mut obj = obj.clone();
             obj.rot += offset;
             obj.pos += spell.spell_range * angle_to_vec(obj.rot);

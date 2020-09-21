@@ -91,7 +91,7 @@ impl Enemy {
             true
         }
     }
-    pub fn update(&mut self, ctx: &mut Context, mplayer: &mut MediaPlayer) -> GameResult<()> {
+    pub fn update(&mut self, _ctx: &mut Context, _mplayer: &mut MediaPlayer) -> GameResult<()> {
         match self.behaviour {
             Chaser::NoIntel => (),
             Chaser::LastKnown{

@@ -1,4 +1,4 @@
-use std::f32::consts::{FRAC_1_SQRT_2 as COS_45_D, PI};
+use std::f32::consts::{FRAC_1_SQRT_2 as COS_45_D};
 use crate::{
     ext::FloatExt,
     util::{
@@ -8,9 +8,9 @@ use crate::{
         Vector2, Point2
     },
     io::tex::PosText,
-    obj::{Object, projectile::Projectile, explosion::{ExplosionUpdate, Explosion, EXPLOSIONS}, 
-        decal::Decal, pickup::Pickup, player::{Player, ElemSlots, ActiveSlot}, energy::Energy, 
-        enemy::{Enemy, Chaser}, health::Health, spell::{Spell, CastType, SPELLS, ObjMaker, Element}},
+    obj::{Object, explosion::{ExplosionUpdate}, 
+        decal::Decal, pickup::Pickup, player::{Player, ActiveSlot, ElemSlots}, energy::Energy, 
+        enemy::{Enemy, Chaser}, health::Health, spell::ObjMaker},
     game::{
         DELTA, State, GameState, StateSwitch, world::{Level, Statistics, World},
         event::{Event::{self, Key, Mouse}, MouseButton, KeyCode, KeyMods}
@@ -59,24 +59,24 @@ pub struct Play {
     cur_pickup: Option<usize>,
     victory_time: f32,
     time: usize,
-    initial: (Health, Energy),
+    initial: (Health, Energy, ElemSlots),
     level: Level,
 }
 
 impl Play {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(ctx: &mut Context, s: &mut State, level: Level, pl: Option<(Health, Energy)>) -> GameResult<Box<dyn GameState>> {
+    pub fn new(ctx: &mut Context, s: &mut State, level: Level, pl: Option<(Health, Energy, ElemSlots)>) -> GameResult<Box<dyn GameState>> {
         mouse::set_cursor_hidden(ctx, true);
 
         let mut player = Player::from_point(level.start_point.unwrap_or_else(|| Point2::new(500., 500.)));
-        if let Some((h, e)) = pl {
-            player = player.with_health(h).with_energy(e);
+        if let Some((h, e, es)) = pl {
+            player = player.with_health(h).with_energy(e).with_spell(es);
         };
 
         Ok(Box::new(
             Play {
                 level: level.clone(),
-                initial: (player.health, player.energy),
+                initial: (player.health, player.energy, player.spell.clone()),
                 hp_text: s.assets.text(Point2::new(4., 4.)).and_text("100"),
                 arm_text: s.assets.text(Point2::new(4., 33.)).and_text("100"),
                 energy_text: s.assets.text(Point2::new(4., 62.)).and_text("100.0"),
@@ -141,6 +141,7 @@ impl GameState for Play {
                                 enemies_left: self.world.enemies.len(),
                                 health_left: self.initial.0,
                                 energy_left: self.initial.1,
+                                spell: self.initial.2.clone(),
                                 level: self.level.clone(),
                             })));
                             s.mplayer.play(ctx, "death")?;
@@ -156,7 +157,7 @@ impl GameState for Play {
                         if enemy.pl.health.is_dead() {
                             s.mplayer.play(ctx, "death")?;
 
-                            let Enemy{pl: Player{obj: Object{pos, ..}, ..}, ..}
+                            let Enemy{pl: Player{obj: Object{ ..}, ..}, ..}
                                 = self.world.enemies.remove(i);
                         } else {
                             if !enemy.behaviour.chasing() {
@@ -211,6 +212,7 @@ impl GameState for Play {
                             enemies_left: self.world.enemies.len(),
                             health_left: self.initial.0,
                             energy_left: self.initial.1,
+                            spell: self.initial.2.clone(),
                             level: self.level.clone(),
                         })));
                         s.mplayer.play(ctx, "death")?;
@@ -229,11 +231,8 @@ impl GameState for Play {
                     if enemy.pl.health.is_dead() {
                         s.mplayer.play(ctx, "death")?;
                         
-                        let Enemy{pl: Player{spell, obj: Object{pos, ..}, ..}, ..}
+                        let Enemy{pl: Player{obj: Object{..}, ..}, ..}
                         = self.world.enemies.remove(e);
-                        // for wep in wep {
-                        //     self.world.weapons.push(wep.into_drop(pos));
-                        // }
                     } else {
                         if !enemy.behaviour.chasing() {
                             self.world.enemies[e].behaviour = Chaser::LookAround{
@@ -289,6 +288,32 @@ impl GameState for Play {
         } else {
             100.
         };
+        let player = &mut self.world.player;
+        if let Some(cur_spell) = player.spell.get_cur_mut() {
+            cur_spell.update(ctx, &mut s.mplayer)?;
+            if mouse::button_pressed(ctx, MouseButton::Left) && !cur_spell.spell.cast_type.clone().is_charge_up() {
+                cur_spell.being_charged = true;
+                let pos = player.obj.pos;
+                let mut obj = Object::new(pos);
+                obj.rot = player.obj.rot;
+                if let Some(obj_maker) = cur_spell.cast(ctx, &mut s.mplayer).unwrap() {
+                    if player.energy.try_to_use_energy(cur_spell.spell.energy_cost) {
+                        match obj_maker {
+                            ObjMaker::Projectile(pm) => {
+                                for projectile in pm.make(obj) {
+                                    self.world.projectiles.push(projectile);
+                                }
+                            }
+                            ObjMaker::Explosion(em) => {
+                                for explosion in em.make(obj) {
+                                    self.world.explosions.push(explosion);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         self.world.player.obj.move_on_grid(player_vel, speed, &self.world.palette, &self.world.grid);
 
         let game_won = match self.world.exit {
@@ -311,6 +336,7 @@ impl GameState for Play {
                 enemies_left: self.world.enemies.len(),
                 health_left: self.world.player.health,
                 energy_left: self.world.player.energy,
+                spell: self.world.player.spell.clone(),
             })));
         }
         Ok(())
@@ -407,6 +433,17 @@ impl GameState for Play {
         let img = s.assets.get_img(ctx, "common/crosshair");
         graphics::draw(ctx, &*img, drawparams)
     }
+    fn event_down(&mut self, _s: &mut State, _ctx: &mut Context, event: Event) {
+        // use self::KeyCode::*;
+        if let Mouse(MouseButton::Left) = event {
+            let player = &mut self.world.player;
+            if let Some(cur_spell) = player.spell.get_cur_mut() {
+                if player.energy.try_to_use_energy(cur_spell.spell.energy_cost) {
+                    cur_spell.being_charged = true;
+                }
+            }
+        }
+    }
     fn event_up(&mut self, s: &mut State, ctx: &mut Context, event: Event) {
         use self::KeyCode::*;
         match event {
@@ -416,13 +453,7 @@ impl GameState for Play {
             Key(G) => {
                 warn!("Dropped nothing");
             },
-            Key(R) => {
-                self.world.player.spell.add_element(Element::Ice);
-            },
-            Key(F) => {
-                self.world.player.spell.add_element(Element::Fire);
-            },
-            Mouse(MouseButton::Left) | Key(Space) => {
+            Mouse(MouseButton::Right) | Key(Space) => {
                 // TODO do knives with bullets too
                 let player = &mut self.world.player;
                 let mut backstab = false;
@@ -445,30 +476,28 @@ impl GameState for Play {
                 if let Some(i) = dead {
                     s.mplayer.play(ctx, "death").unwrap();
 
-                    let Enemy{pl: Player{ obj: Object{pos, ..}, ..}, ..}
+                    let Enemy{pl: Player{ obj: Object{..}, ..}, ..}
                         = self.world.enemies.remove(i);
                 }
 
                 s.mplayer.play(ctx, if backstab {"shuk"} else {"hling"}).unwrap();
             }
-            Mouse(MouseButton::Right) => {
+            Mouse(MouseButton::Left) => {
                 let player = &mut self.world.player;
                 if let Some(cur_spell) = player.spell.get_cur_mut() {
+                    cur_spell.being_charged = false;
                     let pos = player.obj.pos;
                     let mut obj = Object::new(pos);
                     obj.rot = player.obj.rot;
-                    if player.energy.try_to_use_energy(cur_spell.spell.energy_cost) {
-
-                        match cur_spell.spell.cast_type {
-                            CastType::Projectile{} => {
-                                if let Some(ObjMaker::Projectile(pm)) = cur_spell.cast(ctx, &mut s.mplayer).unwrap() {
+                    if let Some(obj_maker) = cur_spell.cast(ctx, &mut s.mplayer).unwrap() {
+                        if player.energy.try_to_use_energy(cur_spell.spell.energy_cost) {
+                            match obj_maker {
+                                ObjMaker::Projectile(pm) => {
                                     for projectile in pm.make(obj) {
                                         self.world.projectiles.push(projectile);
                                     }
                                 }
-                            }
-                            CastType::Explosion{} => {
-                                if let Some(ObjMaker::Explosion(em)) = cur_spell.cast(ctx, &mut s.mplayer).unwrap() {
+                                ObjMaker::Explosion(em) => {
                                     for explosion in em.make(obj) {
                                         self.world.explosions.push(explosion);
                                     }

@@ -4,13 +4,12 @@ use rand::{thread_rng, Rng};
 const PI_MUL_2: f32 = 2. * PI;
 
 use crate::{
-    util::{angle_to_vec, Vector2, Sstr, Point2},
+    util::{angle_to_vec, Vector2, Sstr},
     game::{
         DELTA,
         world::{Grid, Palette},
     },
     io::{
-        snd::MediaPlayer,
         tex::{Assets, },
     },
 };
@@ -64,7 +63,7 @@ impl ExplosionInstance<'_> {
     pub fn draw(&self, ctx: &mut Context, a: &Assets) -> GameResult<()> {
         match &self.state {
             ExplosionState::Fused{..} => {
-                let img = a.get_img(ctx, "spells/explosions/smoke");
+                let img = a.get_img(ctx, "spells/explosions/smoke2");
                 self.obj.draw(ctx, &*img, WHITE)
             }
             ExplosionState::Explosion { mesh, alive_time } => {
@@ -85,8 +84,8 @@ impl ExplosionInstance<'_> {
     }
     fn make_mesh(&self, ctx: &mut Context, a: &Assets, palette: &Palette, grid: &Grid) -> GameResult<Mesh> {
         const NUM_VERTICES: u32 = 120;
-        let radians_per_vert: f32 = (self.updated_degrees / NUM_VERTICES as f32) * PI/180.;
-        let angle_offset = self.obj.rot+(self.updated_degrees/2.)*PI/180.;
+        let radians_per_vert: f32 = ((self.updated_degrees*180./PI) / NUM_VERTICES as f32)*PI/180.;
+        let angle_offset = self.obj.rot+(self.updated_degrees/2.);
         
         let random_offset = thread_rng().gen_range(0., PI_MUL_2);
 
@@ -113,7 +112,7 @@ impl ExplosionInstance<'_> {
     fn is_pos_hit(&self, palette: &Palette, grid: &Grid, obj: &Object) -> bool {
         let start = self.obj.pos;
         let d_pos = obj.pos-start;
-        let rot_offset = (self.updated_degrees/2.)*PI/180.;
+        let rot_offset = self.updated_degrees/2.;
         let vec_start = angle_to_vec(self.obj.rot+rot_offset);
         let vec_end = angle_to_vec(self.obj.rot-rot_offset);
         let in_range = d_pos.norm() < self.explosion.range && grid.ray_cast(palette, start, d_pos, true).full();
@@ -176,13 +175,13 @@ impl ExplosionInstance<'_> {
     }
 }
 
-pub struct ExplosionMaker<'a>(pub &'a Spell, pub &'a Vec<f32>);
+pub struct ExplosionMaker<'a>(pub &'a Spell, pub &'a Vec<f32>, pub f32);
 impl<'a> ExplosionMaker<'a> {
     pub fn make(self, obj: Object) -> impl Iterator<Item=ExplosionInstance<'a>> {
-        let ExplosionMaker(spell, offsets) = self;
+        let ExplosionMaker(spell, offsets, ratio) = self;
         let explosion = &EXPLOSIONS[spell.cast_name];
 
-        offsets.into_iter().map(move |offset| {
+        offsets.iter().map(move |offset| {
             let mut obj = obj.clone();
 
             obj.rot += offset;

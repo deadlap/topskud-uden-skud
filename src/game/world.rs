@@ -2,12 +2,11 @@ use crate::{
     util::{Point2, Vector2, sstr},
     io::tex::{Assets, },
     obj::{
-        player::{Player},
+        player::{Player, ElemSlots},
         enemy::Enemy,
         health::Health,
-        projectile::{Projectile, ProjectileInstance, PROJECTILES},
-        explosion::{Explosion, ExplosionInstance, EXPLOSIONS},
-        spell::{Spell, SpellInstance, SPELLS},
+        projectile::{ProjectileInstance},
+        explosion::{ExplosionInstance},
         pickup::Pickup,
         energy::Energy,
         decal::{Decal, OldDecoration},
@@ -80,6 +79,7 @@ pub struct Statistics {
     pub health_left: Health,
     pub energy_left: Energy,
     pub level: Level,
+    pub spell: ElemSlots,
 }
 
 #[derive(Debug, Clone)]

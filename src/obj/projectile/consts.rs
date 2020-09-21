@@ -1,13 +1,11 @@
-use super::{Spell, Projectile};
+use super::{Projectile};
 use crate::util::{sstr, add_sstr, Sstr};
 
 use lazy_static::lazy_static;
 
 use std::fs::File;
 use std::io::Read;
-use std::num::NonZeroU16;
 use std::collections::HashMap;
-use std::f32::consts::PI;
 
 lazy_static!{
     pub static ref PROJECTILES: HashMap<&'static str, Projectile> = {

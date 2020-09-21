@@ -1,13 +1,14 @@
-use super::{Spell, Explosion};
-use crate::util::{sstr, add_sstr, Sstr};
+use super::{Explosion};
+use crate::util::{sstr, Sstr};
 
 use lazy_static::lazy_static;
 
 use std::fs::File;
 use std::io::Read;
-use std::num::NonZeroU16;
 use std::collections::HashMap;
 use std::f32::consts::PI;
+
+const DEG2RAD: f32 = PI / 180.;
 
 lazy_static!{
     pub static ref EXPLOSIONS: HashMap<&'static str, Explosion> = {
@@ -63,7 +64,7 @@ impl ExplosionTemplate {
             start_fuse,
             entity_sprite,
             range,
-            degrees,
+            degrees: degrees*DEG2RAD,
             lethal_range,
         }
     }

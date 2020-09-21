@@ -1,11 +1,10 @@
-use super::{Element, CastType, Spell, Projectile, Explosion};
+use super::{Element, SpellType, CastType, Spell};
 use crate::util::{sstr, add_sstr, Sstr};
 
 use lazy_static::lazy_static;
 
 use std::fs::File;
 use std::io::Read;
-use std::num::NonZeroU16;
 use std::collections::HashMap;
 use std::f32::consts::PI;
 
@@ -31,6 +30,8 @@ pub struct SpellTemplate {
     cast_name: Sstr,
     element_type: Vec<Element>,
     energy_cost: f32,
+    spell_type: SpellType,
+    #[serde(default)]
     cast_type: CastType,
     #[serde(default = "def_range")]
     spell_range: f32,
@@ -66,6 +67,7 @@ impl SpellTemplate {
             cast_name,
             element_type,
             energy_cost,
+            spell_type,
             cast_type,
             spell_range,
             cooldown_time,
@@ -81,6 +83,7 @@ impl SpellTemplate {
             cast_name,
             element_type,
             energy_cost,
+            spell_type,
             cast_type,
             spell_range,
             cooldown_time,

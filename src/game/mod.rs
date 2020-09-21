@@ -8,7 +8,7 @@ use crate::{
         snd::MediaPlayer,
         tex::{Assets, PosText},
     },
-    obj::{health::Health, energy::Energy},
+    obj::{health::Health, energy::Energy, player::ElemSlots},
 };
 use ggez::{
     nalgebra::Matrix4,
@@ -37,7 +37,8 @@ pub enum StateSwitch {
     PlayWith{
         lvl: Box<Level>,
         health: Health,
-        energy: Energy
+        energy: Energy,
+        spell: ElemSlots,
     },
     Lose(Box<Statistics>),
     Win(Box<Statistics>),
@@ -321,7 +322,7 @@ impl EventHandler for Master {
 
             use self::StateSwitch::*;
             self.gs = match gsb {
-                PlayWith{lvl, health, energy} => states::play::Play::new(ctx, &mut self.state, *lvl, Some((health, energy))),
+                PlayWith{lvl, health, energy, spell} => states::play::Play::new(ctx, &mut self.state, *lvl, Some((health, energy, spell))),
                 Play(lvl) => states::play::Play::new(ctx, &mut self.state, lvl, None),
                 Menu => states::menu::Menu::new(ctx, &mut self.state),
                 Editor(l) => states::editor::Editor::new(&self.state, l),

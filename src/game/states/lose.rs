@@ -4,7 +4,7 @@ use crate::{
         tex::PosText,
         btn::Button,
     },
-    obj::{health::Health, player, energy::Energy},
+    obj::{health::Health, energy::Energy, player::ElemSlots},
     game::{
         DELTA,
         State, Content, GameState, StateSwitch, world::{Statistics, Level},
@@ -26,6 +26,7 @@ pub struct Lose {
     level: Level,
     health: Health,
     energy: Energy,
+    spell: ElemSlots,
 }
 
 impl Lose {
@@ -53,15 +54,15 @@ impl Lose {
             edit_btn,
             level: stats.level,
             health: stats.health_left,
-            energy: stats.energy_left
+            energy: stats.energy_left,
+            spell: stats.spell,
         }))
     }
     fn edit(&self, s: &mut State) {
         s.switch(StateSwitch::Editor(Some(self.level.clone())));
     }
     fn restart(&self, s: &mut State) {
-        s.switch(StateSwitch::PlayWith{lvl: Box::new(self.level.clone()), health: self.health, energy: self.energy.clone()})
-        // s.switch(StateSwitch::PlayWith{lvl: Box::new(self.level.clone()), health: self.health})
+        s.switch(StateSwitch::PlayWith{lvl: Box::new(self.level.clone()), health: self.health, energy: self.energy, spell: self.spell.clone()})
     }
 }
 
